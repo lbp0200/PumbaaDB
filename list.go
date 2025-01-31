@@ -6,8 +6,8 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-func (b *BadgerDB) LPush(key string, values ...[]byte) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) LPush(key string, values ...[]byte) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var list [][]byte
@@ -39,8 +39,8 @@ func (b *BadgerDB) LPush(key string, values ...[]byte) error {
 	return txn.Commit()
 }
 
-func (b *BadgerDB) RPush(key string, values ...[]byte) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) RPush(key string, values ...[]byte) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var list [][]byte
@@ -72,8 +72,8 @@ func (b *BadgerDB) RPush(key string, values ...[]byte) error {
 	return txn.Commit()
 }
 
-func (b *BadgerDB) LPop(key string) ([]byte, error) {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) LPop(key string) ([]byte, error) {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var list [][]byte
@@ -116,8 +116,8 @@ func (b *BadgerDB) LPop(key string) ([]byte, error) {
 	return value, nil
 }
 
-func (b *BadgerDB) RPop(key string) ([]byte, error) {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) RPop(key string) ([]byte, error) {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var list [][]byte
@@ -160,9 +160,9 @@ func (b *BadgerDB) RPop(key string) ([]byte, error) {
 	return value, nil
 }
 
-func (b *BadgerDB) LRange(key string, start, stop int64) ([][]byte, error) {
+func (db *BadgerDB) LRange(key string, start, stop int64) ([][]byte, error) {
 	var list [][]byte
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil

@@ -7,8 +7,8 @@ import (
 )
 
 // ZAdd adds all the specified members with the specified scores to the sorted set stored at key.
-func (b *BadgerDB) ZAdd(key []byte, members ...*Member) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) ZAdd(key []byte, members ...*Member) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var sortedSet []*Member
@@ -59,8 +59,8 @@ func (b *BadgerDB) ZAdd(key []byte, members ...*Member) error {
 }
 
 // ZRem removes the specified members from the sorted set stored at key.
-func (b *BadgerDB) ZRem(key []byte, members ...[]byte) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) ZRem(key []byte, members ...[]byte) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var sortedSet []*Member
@@ -106,9 +106,9 @@ func (b *BadgerDB) ZRem(key []byte, members ...[]byte) error {
 }
 
 // ZRange returns the specified range of elements in the sorted set stored at key.
-func (b *BadgerDB) ZRange(key []byte, start, stop int64) ([]*Member, error) {
+func (db *BadgerDB) ZRange(key []byte, start, stop int64) ([]*Member, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil
@@ -144,10 +144,10 @@ func (b *BadgerDB) ZRange(key []byte, start, stop int64) ([]*Member, error) {
 	return sortedSet[start : stop+1], nil
 }
 
-// ZRangeByScore returns all the elements in the sorted set at key with a score between min and max.
-func (b *BadgerDB) ZRangeByScore(key []byte, min, max float64) ([]*Member, error) {
+// ZRangeByScore returns all the elements in the sorted set at key with a score between min and maxInt.
+func (db *BadgerDB) ZRangeByScore(key []byte, min, max float64) ([]*Member, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil
@@ -174,9 +174,9 @@ func (b *BadgerDB) ZRangeByScore(key []byte, min, max float64) ([]*Member, error
 }
 
 // ZCard returns the number of elements in the sorted set stored at key.
-func (b *BadgerDB) ZCard(key []byte) (int, error) {
+func (db *BadgerDB) ZCard(key []byte) (int, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil
@@ -196,9 +196,9 @@ func (b *BadgerDB) ZCard(key []byte) (int, error) {
 }
 
 // ZScore returns the score of member in the sorted set stored at key.
-func (b *BadgerDB) ZScore(key, member []byte) (float64, error) {
+func (db *BadgerDB) ZScore(key, member []byte) (float64, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil
@@ -224,9 +224,9 @@ func (b *BadgerDB) ZScore(key, member []byte) (float64, error) {
 }
 
 // ZRank returns the rank of member in the sorted set stored at key, with the scores ordered from low to high.
-func (b *BadgerDB) ZRank(key, member []byte) (int, error) {
+func (db *BadgerDB) ZRank(key, member []byte) (int, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil
@@ -252,9 +252,9 @@ func (b *BadgerDB) ZRank(key, member []byte) (int, error) {
 }
 
 // ZRevRank returns the rank of member in the sorted set stored at key, with the scores ordered from high to low.
-func (b *BadgerDB) ZRevRank(key, member []byte) (int, error) {
+func (db *BadgerDB) ZRevRank(key, member []byte) (int, error) {
 	var sortedSet []*Member
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {
 			return nil

@@ -7,8 +7,8 @@ import (
 )
 
 // SAdd adds the specified members to the set stored at key.
-func (b *BadgerDB) SAdd(key string, members ...[]byte) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) SAdd(key string, members ...[]byte) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var set map[string]struct{}
@@ -44,8 +44,8 @@ func (b *BadgerDB) SAdd(key string, members ...[]byte) error {
 }
 
 // SRem removes the specified members from the set stored at key.
-func (b *BadgerDB) SRem(key string, members ...[]byte) error {
-	txn := b.db.NewTransaction(true)
+func (db *BadgerDB) SRem(key string, members ...[]byte) error {
+	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var set map[string]struct{}
@@ -81,9 +81,9 @@ func (b *BadgerDB) SRem(key string, members ...[]byte) error {
 }
 
 // SMembers returns all the members of the set stored at key.
-func (b *BadgerDB) SMembers(key string) ([][]byte, error) {
+func (db *BadgerDB) SMembers(key string) ([][]byte, error) {
 	var set map[string]struct{}
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil
@@ -108,9 +108,9 @@ func (b *BadgerDB) SMembers(key string) ([][]byte, error) {
 }
 
 // SIsMember returns if member is a member of the set stored at key.
-func (b *BadgerDB) SIsMember(key string, member []byte) (bool, error) {
+func (db *BadgerDB) SIsMember(key string, member []byte) (bool, error) {
 	var set map[string]struct{}
-	err := b.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil
