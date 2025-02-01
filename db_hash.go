@@ -3,39 +3,20 @@ package main
 import (
 	"errors"
 	"github.com/dgraph-io/badger/v3"
-	"github.com/goccy/go-json"
+	"github.com/golang/snappy"
 	"strconv"
 	"time"
 )
+
+const hashPrefix = "hash:"
 
 // HSet sets the string value of a hash field.
 func (db *BadgerDB) HSet(key, field, value []byte) error {
 	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
-	var hash map[string]string
-	item, err := txn.Get(key)
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		hash = make(map[string]string)
-	} else if err != nil {
-		return err
-	} else {
-		err = item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	hash[string(field)] = string(value)
-
-	val, err := json.Marshal(hash)
-	if err != nil {
-		return err
-	}
-
-	err = txn.Set(key, val)
+	storeKey := append([]byte(hashPrefix), append(key, field...)...)
+	err := txn.Set(storeKey, snappy.Encode(nil, value))
 	if err != nil {
 		return err
 	}
@@ -45,29 +26,31 @@ func (db *BadgerDB) HSet(key, field, value []byte) error {
 
 // HGet gets the value of a hash field.
 func (db *BadgerDB) HGet(key, field []byte) ([]byte, error) {
-	var hash map[string]string
+	storeKey := append([]byte(hashPrefix), append(key, field...)...)
+	var val []byte
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
+		item, err := txn.Get(storeKey)
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil
 		} else if err != nil {
 			return err
 		}
 
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		val, err = item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		val, err = snappy.Decode(nil, val)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	value, exists := hash[string(field)]
-	if !exists {
-		return nil, nil
-	}
-
-	return []byte(value), nil
+	return val, nil
 }
 
 // HDel deletes one or more hash fields.
@@ -75,33 +58,12 @@ func (db *BadgerDB) HDel(key []byte, fields ...[]byte) error {
 	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
-	var hash map[string]string
-	item, err := txn.Get(key)
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &hash)
-	})
-	if err != nil {
-		return err
-	}
-
 	for _, field := range fields {
-		delete(hash, string(field))
-	}
-
-	val, err := json.Marshal(hash)
-	if err != nil {
-		return err
-	}
-
-	err = txn.Set(key, val)
-	if err != nil {
-		return err
+		storeKey := append([]byte(hashPrefix), append(key, field...)...)
+		err := txn.Delete(storeKey)
+		if err != nil && !errors.Is(err, badger.ErrKeyNotFound) {
+			return err
+		}
 	}
 
 	return txn.Commit()
@@ -109,18 +71,26 @@ func (db *BadgerDB) HDel(key []byte, fields ...[]byte) error {
 
 // HGetAll gets all the fields and values in a hash.
 func (db *BadgerDB) HGetAll(key []byte) (map[string]string, error) {
-	var hash map[string]string
+	hash := make(map[string]string)
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil
-		} else if err != nil {
-			return err
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := append([]byte(hashPrefix), key...)
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			v, err = snappy.Decode(nil, v)
+			if err != nil {
+				return err
+			}
+			field := k[len(prefix):]
+			hash[string(field)] = string(v)
 		}
-
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -131,26 +101,21 @@ func (db *BadgerDB) HGetAll(key []byte) (map[string]string, error) {
 
 // HKeys gets all the fields in a hash.
 func (db *BadgerDB) HKeys(key []byte) ([]string, error) {
-	var hash map[string]string
+	keys := []string{}
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil
-		} else if err != nil {
-			return err
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := append([]byte(hashPrefix), key...)
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			field := k[len(prefix):]
+			keys = append(keys, string(field))
 		}
-
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	keys := make([]string, 0, len(hash))
-	for key := range hash {
-		keys = append(keys, key)
 	}
 
 	return keys, nil
@@ -158,26 +123,27 @@ func (db *BadgerDB) HKeys(key []byte) ([]string, error) {
 
 // HVals gets all the values in a hash.
 func (db *BadgerDB) HVals(key []byte) ([]string, error) {
-	var hash map[string]string
+	values := []string{}
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil
-		} else if err != nil {
-			return err
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := append([]byte(hashPrefix), key...)
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			v, err = snappy.Decode(nil, v)
+			if err != nil {
+				return err
+			}
+			values = append(values, string(v))
 		}
-
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	values := make([]string, 0, len(hash))
-	for _, value := range hash {
-		values = append(values, value)
 	}
 
 	return values, nil
@@ -185,32 +151,28 @@ func (db *BadgerDB) HVals(key []byte) ([]string, error) {
 
 // HExists determines if a hash field exists.
 func (db *BadgerDB) HExists(key, field []byte) (bool, error) {
-	var hash map[string]string
+	storeKey := append([]byte(hashPrefix), append(key, field...)...)
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
+		_, err := txn.Get(storeKey)
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil
 		} else if err != nil {
 			return err
 		}
-
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		return nil
 	})
 	if err != nil {
 		return false, err
 	}
 
-	_, exists := hash[string(field)]
-	return exists, nil
+	return true, nil
 }
+
 func (db *BadgerDB) HExpire(key, field []byte, expiration int64, options ...string) (bool, error) {
 	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
 	var (
-		//hasExpiration bool
 		nx  bool
 		xx  bool
 		gt  bool
@@ -239,27 +201,8 @@ func (db *BadgerDB) HExpire(key, field []byte, expiration int64, options ...stri
 		return false, errors.New("NX and XX options are mutually exclusive")
 	}
 
-	// 获取键的当前值
-	var hash map[string]string
-	item, err := txn.Get(key)
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		if xx {
-			return false, nil // XX 且键不存在，不设置过期时间
-		}
-		hash = make(map[string]string)
-	} else if err != nil {
-		return false, err
-	} else {
-		err = item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
-		if err != nil {
-			return false, err
-		}
-	}
-
 	// 获取字段的当前过期时间
-	expirationKey := string(key) + ":" + string(field) + ":expire"
+	expirationKey := string(hashPrefix) + string(key) + ":" + string(field) + ":expire"
 	expirationItem, err := txn.Get([]byte(expirationKey))
 	var currentExpiration int64
 	if errors.Is(err, badger.ErrKeyNotFound) {
@@ -336,27 +279,8 @@ func (db *BadgerDB) HEXPIREAT(key, field []byte, expireAt int64, options ...stri
 		return false, errors.New("NX and XX options are mutually exclusive")
 	}
 
-	// 获取键的当前值
-	var hash map[string]string
-	item, err := txn.Get(key)
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		if xx {
-			return false, nil // XX 且键不存在，不设置过期时间
-		}
-		hash = make(map[string]string)
-	} else if err != nil {
-		return false, err
-	} else {
-		err = item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
-		if err != nil {
-			return false, err
-		}
-	}
-
 	// 获取字段的当前过期时间
-	expirationKey := string(key) + ":" + string(field) + ":expire"
+	expirationKey := string(hashPrefix) + string(key) + ":" + string(field) + ":expire"
 	expirationItem, err := txn.Get([]byte(expirationKey))
 	var currentExpiration int64
 	if errors.Is(err, badger.ErrKeyNotFound) {
@@ -398,57 +322,28 @@ func (db *BadgerDB) HEXPIREAT(key, field []byte, expireAt int64, options ...stri
 	return true, txn.Commit()
 }
 
-// HExpireTime gets the expiration time of a hash field.
-func (db *BadgerDB) HExpireTime(key, field []byte) (int64, error) {
-	txn := db.db.NewTransaction(false)
-	defer txn.Discard()
-
-	// 获取字段的当前过期时间
-	expirationKey := string(key) + ":" + string(field) + ":expire"
-	expirationItem, err := txn.Get([]byte(expirationKey))
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return 0, nil // 字段不存在过期时间
-	} else if err != nil {
-		return 0, err
-	}
-
-	var currentExpiration int64
-	err = expirationItem.Value(func(val []byte) error {
-		currentExpiration, err = strconv.ParseInt(string(val), 10, 64)
-		return err
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	return currentExpiration, nil
-}
-
 // HIncrBy increments the integer value of a hash field by the given amount.
 func (db *BadgerDB) HIncrBy(key, field []byte, increment int64) (int64, error) {
 	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
-	var hash map[string]string
-	item, err := txn.Get(key)
+	storeKey := append([]byte(hashPrefix), append(key, field...)...)
+	var currentValue int64
+	item, err := txn.Get(storeKey)
 	if errors.Is(err, badger.ErrKeyNotFound) {
-		hash = make(map[string]string)
+		currentValue = 0
 	} else if err != nil {
 		return 0, err
 	} else {
-		err = item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		val, err := item.ValueCopy(nil)
 		if err != nil {
 			return 0, err
 		}
-	}
-
-	// 获取当前字段值
-	currentValueStr, exists := hash[string(field)]
-	var currentValue int64
-	if exists {
-		currentValue, err = strconv.ParseInt(currentValueStr, 10, 64)
+		val, err = snappy.Decode(nil, val)
+		if err != nil {
+			return 0, err
+		}
+		currentValue, err = strconv.ParseInt(string(val), 10, 64)
 		if err != nil {
 			return 0, errors.New("field value is not an integer")
 		}
@@ -458,15 +353,7 @@ func (db *BadgerDB) HIncrBy(key, field []byte, increment int64) (int64, error) {
 	newValue := currentValue + increment
 
 	// 更新哈希字段
-	hash[string(field)] = strconv.FormatInt(newValue, 10)
-
-	// 序列化并设置新的哈希值
-	val, err := json.Marshal(hash)
-	if err != nil {
-		return 0, err
-	}
-
-	err = txn.Set(key, val)
+	err = txn.Set(storeKey, snappy.Encode(nil, []byte(strconv.FormatInt(newValue, 10))))
 	if err != nil {
 		return 0, err
 	}
@@ -484,26 +371,23 @@ func (db *BadgerDB) HIncrByFloat(key, field []byte, increment float64) (float64,
 	txn := db.db.NewTransaction(true)
 	defer txn.Discard()
 
-	var hash map[string]string
-	item, err := txn.Get(key)
+	storeKey := append([]byte(hashPrefix), append(key, field...)...)
+	var currentValue float64
+	item, err := txn.Get(storeKey)
 	if errors.Is(err, badger.ErrKeyNotFound) {
-		hash = make(map[string]string)
+		currentValue = 0
 	} else if err != nil {
 		return 0, err
 	} else {
-		err = item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &hash)
-		})
+		val, err := item.ValueCopy(nil)
 		if err != nil {
 			return 0, err
 		}
-	}
-
-	// 获取当前字段值
-	currentValueStr, exists := hash[string(field)]
-	var currentValue float64
-	if exists {
-		currentValue, err = strconv.ParseFloat(currentValueStr, 64)
+		val, err = snappy.Decode(nil, val)
+		if err != nil {
+			return 0, err
+		}
+		currentValue, err = strconv.ParseFloat(string(val), 64)
 		if err != nil {
 			return 0, errors.New("field value is not a float")
 		}
@@ -513,15 +397,7 @@ func (db *BadgerDB) HIncrByFloat(key, field []byte, increment float64) (float64,
 	newValue := currentValue + increment
 
 	// 更新哈希字段
-	hash[string(field)] = strconv.FormatFloat(newValue, 'f', -1, 64)
-
-	// 序列化并设置新的哈希值
-	val, err := json.Marshal(hash)
-	if err != nil {
-		return 0, err
-	}
-
-	err = txn.Set(key, val)
+	err = txn.Set(storeKey, snappy.Encode(nil, []byte(strconv.FormatFloat(newValue, 'f', -1, 64))))
 	if err != nil {
 		return 0, err
 	}

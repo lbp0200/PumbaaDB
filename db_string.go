@@ -148,19 +148,6 @@ func (db *BadgerDB) Get(key string) ([]byte, error) {
 	return valCopy, nil
 }
 
-// Del deletes a key.
-func (db *BadgerDB) Del(key string) error {
-	txn := db.db.NewTransaction(true)
-	defer txn.Discard()
-
-	err := txn.Delete([]byte(key))
-	if err != nil {
-		return err
-	}
-
-	return txn.Commit()
-}
-
 // SetNX sets the value for a key if it does not already exist.
 func (db *BadgerDB) SetNX(key string, value []byte) (bool, error) {
 	txn := db.db.NewTransaction(true)

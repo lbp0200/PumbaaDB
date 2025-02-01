@@ -23,11 +23,3 @@ type Member struct {
 	Member []byte
 	Score  float64
 }
-
-// Helper function to find the maximum of two integers.
-func MaxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
