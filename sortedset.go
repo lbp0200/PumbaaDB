@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/goccy/go-json"
 	"sort"
 )
 

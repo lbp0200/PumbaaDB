@@ -13,7 +13,7 @@ func main() {
 	defer db.Close()
 
 	// 示例：Set操作
-	err = db.Set("key1", []byte("value1"))
+	_, err = db.Set("key1", []byte("value1"))
 	if err != nil {
 		log.Fatal(err)
 	}

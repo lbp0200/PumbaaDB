@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/goccy/go-json"
 )
 
 // SAdd adds the specified members to the set stored at key.

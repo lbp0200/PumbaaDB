@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/goccy/go-json"
 )
 
 func (db *BadgerDB) LPush(key string, values ...[]byte) error {
