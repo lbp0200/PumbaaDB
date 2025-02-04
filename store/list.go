@@ -1,6 +1,7 @@
 package store
 
 import (
+	"PumbaaDB/helper"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ func (s *BadgerStore) listCreate(key []byte) error {
     return s.db.Update(func(txn *badger.Txn) error {
         // 初始化链表元数据
         lengthKey := s.listKey(key, "length")
-        if err := txn.Set(lengthKey, uint64ToBytes(0)); err != nil {
+        if err := txn.Set(lengthKey,helper.Uint64ToBytes(0)); err != nil {
             return err
         }
         startKey := s.listKey(key, "start")
@@ -45,7 +46,7 @@ func (s *BadgerStore) listGetMeta(key []byte) (length uint64, start, end string,
             return err
         }
         lengthVal, _ := lengthItem.ValueCopy(nil)
-        length = bytesToUint64(lengthVal)
+        length =helper.BytesToUint64(lengthVal)
         
         // 获取起始节点
         startItem, err := txn.Get(s.listKey(key, "start"))
@@ -67,7 +68,7 @@ func (s *BadgerStore) listGetMeta(key []byte) (length uint64, start, end string,
 
 func (s *BadgerStore) listUpdateMeta(txn *badger.Txn, key []byte, length uint64, start, end string) error {
     // 更新长度
-    if err := txn.Set(s.listKey(key, "length"), uint64ToBytes(length)); err != nil {
+    if err := txn.Set(s.listKey(key, "length"),helper.Uint64ToBytes(length)); err != nil {
         return err
     }
     // 更新起始节点
@@ -166,7 +167,8 @@ func (s *BadgerStore) RPop(key []byte) ([]byte, error) {
         if err != nil {
             return err
         }
-        newEnd := string(item.ValueCopy(nil))
+        newEndVal, _ := item.ValueCopy(nil)	
+        newEnd := string(newEndVal)
         
         // 更新链表关系
         if length == 1 {

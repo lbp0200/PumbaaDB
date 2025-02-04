@@ -54,6 +54,8 @@ func handleConnection(conn net.Conn, store *store.BadgerStore) {
             // handleHSet(conn, args[1:], store)
         case "HGET":
             // handleHGet(conn, args[1:], store)
+		case "SCARD":
+        resp.    HandleSCARD(conn, args[1:], store)
         default:
             conn.Write(resp.Encode(fmt.Errorf("ERR unknown command '%s'", cmd)))
         }
