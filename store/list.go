@@ -167,8 +167,9 @@ func (s *BadgerStore) RPop(key []byte) ([]byte, error) {
         if err != nil {
             return err
         }
-	v,_:=	item.ValueCopy(nil)
-        newEnd := string(v)
+
+        newEndVal, _ := item.ValueCopy(nil)	
+        newEnd := string(newEndVal)
         
         // 更新链表关系
         if length == 1 {

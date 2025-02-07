@@ -6,7 +6,6 @@ import (
 	"net"
 )
 
-
 func handleLPush(conn net.Conn, args [][]byte, store *store.BadgerStore) {
 	if len(args) < 2 {
 		conn.Write(Encode(fmt.Errorf("ERR wrong number of arguments")))
