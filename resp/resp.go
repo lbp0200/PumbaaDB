@@ -1,9 +1,11 @@
 package resp
 
 import (
+	"PumbaaDB/store"
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 )
 
@@ -64,5 +66,31 @@ func Encode(value interface{}) []byte {
         return buf.Bytes()
     default:
         return []byte("-ERR unknown type\r\n")
+    }
+}
+
+func HandleConnection(conn net.Conn, store *store.BadgerStore) {
+    defer conn.Close()
+    for {
+        args, err := Parse(conn)
+        if err != nil {
+            return
+        }
+        if len(args) == 0 {
+            continue
+        }
+        cmd := string(args[0])
+        switch cmd {
+        case "SET":
+            HandleSet(conn, args[1:], store)
+        case "GET":
+            // handleGet(conn, args[1:], store)
+        case "HSET":
+            // handleHSet(conn, args[1:], store)
+        case "HGET":
+            // handleHGet(conn, args[1:], store)
+        default:
+            conn.Write(Encode(fmt.Errorf("ERR unknown command '%s'", cmd)))
+        }
     }
 }
