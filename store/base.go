@@ -9,10 +9,10 @@ import (
 func (s *BadgerStore) DelString(key string) error {
 	logFuncTag := "BadgerStoreDelString"
 	bKey := []byte(key)
-	baggerTypeKey := TypeKeyGet(key)
+	badgerTypeKey := TypeKeyGet(key)
 	badgerValueKey := keyBadgetGet(prefixKeyString, bKey)
 	return s.db.Update(func(txn *badger.Txn) error {
-		errDel := txn.Delete(baggerTypeKey)
+		errDel := txn.Delete(badgerTypeKey)
 		if errDel != nil {
 			return fmt.Errorf("%s,Del Badger Type Key:%v", logFuncTag, errDel)
 		}
@@ -26,7 +26,7 @@ func (s *BadgerStore) DelString(key string) error {
 
 func (s *BadgerStore) Del(key string) error {
 	bKey := []byte(key)
-	bTypeKey := TypeKeyGet(bKey)
+	bTypeKey := TypeKeyGet(key)
 	return s.db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get(bTypeKey)
 		if err != nil {
