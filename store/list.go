@@ -67,26 +67,29 @@ func (s *BadgerStore) listCreate(key []byte) error {
 	})
 }
 
-func (s *BadgerStore) listGetMeta(key []byte) (length uint64, start, end string, err error) {
+func (s *BadgerStore) listGetMeta(keyRedis []byte) (length uint64, start, end string, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
 		// 获取长度
-		lengthItem, err := txn.Get(s.listKey(key, "length"))
-		if err != nil {
-			return err
+		lengthItem, errGet := txn.Get(s.listKey(keyRedis, "length"))
+		if errGet != nil {
+			return errGet
 		}
-		lengthVal, _ := lengthItem.ValueCopy(nil)
+		lengthVal, errValueCopy := lengthItem.ValueCopy(nil)
+		if errValueCopy != nil {
+			return errValueCopy
+		}
 		length = helper.BytesToUint64(lengthVal)
 
 		// 获取起始节点
-		startItem, err := txn.Get(s.listKey(key, "start"))
-		if err == nil {
+		startItem, errStart := txn.Get(s.listKey(keyRedis, "start"))
+		if errStart == nil {
 			startVal, _ := startItem.ValueCopy(nil)
 			start = string(startVal)
 		}
 
 		// 获取结束节点
-		endItem, err := txn.Get(s.listKey(key, "end"))
-		if err == nil {
+		endItem, errEnd := txn.Get(s.listKey(keyRedis, "end"))
+		if errEnd == nil {
 			endVal, _ := endItem.ValueCopy(nil)
 			end = string(endVal)
 		}
@@ -133,12 +136,10 @@ func (s *BadgerStore) linkNodes(txn *badger.Txn, key []byte, prevID, nextID stri
 	return nil
 }
 
-// LPUSH 实现
-func (s *BadgerStore) LPush(key []byte, values ...[]byte) (int, error) {
-	var newLength uint64
-	err := s.db.Update(func(txn *badger.Txn) error {
+// LPush Redis LPUSH 实现
+func (s *BadgerStore) LPush(key []byte, values ...[]byte) (isSuccess int, err error) {
+	err = s.db.Update(func(txn *badger.Txn) error {
 		length, start, end, _ := s.listGetMeta(key)
-
 		for _, value := range values {
 			// 创建新节点
 			nodeID, err := s.createNode(txn, key, value)
@@ -168,9 +169,14 @@ func (s *BadgerStore) LPush(key []byte, values ...[]byte) (int, error) {
 		}
 
 		// 更新元数据
-		return s.listUpdateMeta(txn, key, length, start, end)
+		err := s.listUpdateMeta(txn, key, length, start, end)
+		if err != nil {
+			return err
+		}
+		isSuccess = 1
+		return nil
 	})
-	return int(newLength), err
+	return isSuccess, err
 }
 
 // RPOP 实现

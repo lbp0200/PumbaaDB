@@ -6,25 +6,8 @@ import (
 	"github.com/dgraph-io/badger/v4"
 )
 
-func (s *BadgerStore) DelString(key string) error {
-	logFuncTag := "BadgerStoreDelString"
-	bKey := []byte(key)
-	badgerTypeKey := TypeKeyGet(key)
-	badgerValueKey := keyBadgetGet(prefixKeyString, bKey)
-	return s.db.Update(func(txn *badger.Txn) error {
-		errDel := txn.Delete(badgerTypeKey)
-		if errDel != nil {
-			return fmt.Errorf("%s,Del Badger Type Key:%v", logFuncTag, errDel)
-		}
-		errDel = txn.Delete(badgerValueKey)
-		if errDel != nil {
-			return fmt.Errorf("%s,Del Badger Value Key:%v", logFuncTag, errDel)
-		}
-		return nil
-	})
-}
-
 func (s *BadgerStore) Del(key string) error {
+	// TODO 需要完善，多个key，返回删除的数量
 	bKey := []byte(key)
 	bTypeKey := TypeKeyGet(key)
 	return s.db.Update(func(txn *badger.Txn) error {
@@ -32,9 +15,9 @@ func (s *BadgerStore) Del(key string) error {
 		if err != nil {
 			return err
 		}
-		valCopy, err := item.ValueCopy(nil)
-		if err != nil {
-			return err
+		valCopy, errValueCopy := item.ValueCopy(nil)
+		if errValueCopy != nil {
+			return errValueCopy
 		}
 		switch string(valCopy) {
 		case KeyTypeString:
@@ -56,5 +39,23 @@ func (s *BadgerStore) Del(key string) error {
 			// 默认的删除逻辑
 			return txn.Delete(bKey)
 		}
+	})
+}
+
+func (s *BadgerStore) DelString(key string) error {
+	logFuncTag := "BadgerStoreDelString"
+	bKey := []byte(key)
+	badgerTypeKey := TypeKeyGet(key)
+	badgerValueKey := keyBadgetGet(prefixKeyString, bKey)
+	return s.db.Update(func(txn *badger.Txn) error {
+		errDel := txn.Delete(badgerTypeKey)
+		if errDel != nil {
+			return fmt.Errorf("%s,Del Badger Type Key:%v", logFuncTag, errDel)
+		}
+		errDel = txn.Delete(badgerValueKey)
+		if errDel != nil {
+			return fmt.Errorf("%s,Del Badger Value Key:%v", logFuncTag, errDel)
+		}
+		return nil
 	})
 }

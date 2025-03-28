@@ -5,20 +5,20 @@ import (
 )
 
 const (
-	KeyTypeString = "string"
-	KeyTypeList   = "list"
-	KeyTypeHash   = "hash"
-	KeyTypeSet    = "set"
-	KeyTypeZSet   = "zset"
+	KeyTypeString = "STRING"
+	KeyTypeList   = "LIST"
+	KeyTypeHash   = "HASH"
+	KeyTypeSet    = "SET"
+	KeyTypeZSet   = "ZSET"
 )
 
 var (
-	keyTypeBytes    = []byte("type:")
-	prefixKeyString = []byte("string:")
-	prefixKeyList   = []byte("list:")
-	prefixKeyHash   = []byte("hash:")
-	prefixKeySet    = []byte("set:")
-	prefixKeyZSet   = []byte("zset:")
+	keyTypeBytes    = []byte("TYPE:")
+	prefixKeyString = []byte("STRING:")
+	prefixKeyList   = []byte("LIST:")
+	prefixKeyHash   = []byte("HASH:")
+	prefixKeySet    = []byte("SET:")
+	prefixKeyZSet   = []byte("ZSET:")
 )
 
 type BadgerStore struct {
